@@ -66,7 +66,7 @@ This R script gathers, cleans, and analyzes movie data from various sources. It 
 - IMDb Rating vs. Awards
 - Rating/score vs. Year
 - Rotten Tomatoes vs. Nominations
-- 
+  
 ##  Notes
 - API Limits: OMDb API has a daily request limit for free users.
 - This is a school project of COMP2501
