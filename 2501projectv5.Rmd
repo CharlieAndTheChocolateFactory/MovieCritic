@@ -1,0 +1,749 @@
+
+
+```{r}
+
+# Load the package.
+library(datasets)
+library(dslabs)
+library(tidyr)
+library(dplyr)
+library(rvest)
+library(stringr)
+library(lubridate)
+library(gutenbergr)
+library(tidytext)
+library(textdata)
+library(ggplot2)
+
+```
+
+```{r}
+# Load necessary libraries
+library(rvest)
+library(stringr)
+library(dplyr)
+
+# Define the URL
+url <- "https://www.imdb.com/list/ls008583762/"
+
+# Read the HTML content from the URL
+page <- read_html(url)
+
+# Extract the href attributes of the links within the list
+movie_links <- page %>%
+  html_nodes(".lister-item-image img") %>%
+  html_attr("data-tconst")
+
+# Extract the IMDb IDs from the href attributes
+movie_IDs <- str_extract(movie_links, "tt\\d+")
+
+# Optionally, clean NA values if any links do not contain IMDb IDs
+movie_IDs <- na.omit(movie_IDs)
+
+# # Display the IMDb IDs
+# print(movie_IDs)
+```
+
+
+```{r}
+library(httr)
+library(dplyr)
+
+# API Configuration
+api_key <- "cd8b35cb"
+
+# Initialize an empty data frame to store movie data
+movies_df <- data.frame(
+  Title = character(),
+  Year = character(),
+  Director = character(),
+  IMDbRating = character(),
+  rottenTomatoScore = character(),
+  awards = character(),
+  stringsAsFactors = FALSE
+)
+
+# Function to fetch movie data
+fetch_movie_data <- function(movie_ID) {
+  url <- sprintf("http://www.omdbapi.com/?i=%s&apikey=%s", movie_ID, api_key)
+  response <- GET(url)
+  if (status_code(response) == 200) {
+    movie_data <- content(response, "parsed")
+    if (!is.null(movie_data$Error)) {
+      print(movie_data$Error)
+      return(data.frame(Title = NA, Year = NA, Director = NA, imdbRating = NA, rottenTomatoScore = NA, awards = NA))
+    }
+    if ("Ratings" %in% names(movie_data) &&
+        length(movie_data$Ratings) > 0) {
+      rotten_tomatoes_rating <- NA
+      for (rating in movie_data$Ratings) {
+        # Check if the source is 'Rotten Tomatoes'
+        if (rating$Source == "Rotten Tomatoes") {
+          rotten_tomatoes_rating <- (rating$Value)
+        }
+      }
+    } else {
+      rotten_tomatoes_rating <- NA  # Return NA if there are no ratings
+    }
+    print(rotten_tomatoes_rating)
+    return(data.frame(
+      Title = movie_data$Title,
+      Year = movie_data$Year,
+      Director = movie_data$Director,
+      IMDbRating = movie_data$imdbRating,
+      rottenTomatoScore = rotten_tomatoes_rating,
+      awards = movie_data$Awards
+    ))
+  } else {
+    print(response)
+    return(data.frame(Title = NA, Year = NA, Director = NA, imdbRating = NA, rottenTomatoScore = NA))
+  }
+}
+
+# Process each IMDb ID
+for (id in movie_IDs) {
+  movie_info <- fetch_movie_data(id)
+  movies_df <- bind_rows(movies_df, movie_info)
+}
+
+# Display the result
+print(movies_df)
+
+
+```
+```{r}
+
+# add back the rottenTomatoScore into the 25th row of the data frame movies_df
+new_hero_movies_df <- movies_df
+
+new_hero_movies_df$rottenTomatoScore[25] <- "90%"
+
+
+print(new_hero_movies_df)
+```
+
+
+```{r}
+library(dplyr)
+
+# Function to extract numbers and sum them
+sum_awards_nominations <- function(award_string) {
+  # Extract all groups of digits
+  numbers <- gsub("[^0-9]", " ", award_string)  # Replace non-digits with spaces
+  numbers <- unlist(strsplit(numbers, "\\s+"))  # Split string at one or more spaces
+  numbers <- numbers[numbers != ""]            # Remove any empty strings
+  numbers <- as.numeric(numbers)               # Convert to numeric
+  
+  # Return the sum of numbers
+  sum(numbers, na.rm = TRUE)
+}
+
+# Apply the function to the 'awards' column and create a new data frame
+new_hero_movies_df <- new_hero_movies_df %>%
+  mutate(totalNominationsAndAwards = sapply(awards, sum_awards_nominations))
+
+# View the updated data frame
+print(new_hero_movies_df)
+```
+
+
+```{r}
+# Define the URL
+top_url <- "https://m.imdb.com/chart/top/"
+
+# Read the HTML content from the URL
+top_page <- read_html(top_url)
+
+# Extract the href attributes of the links within the list
+top_movie_links <- top_page %>%
+  html_nodes(".ipc-title a") %>%
+  html_attr("href")
+
+# Extract the IMDb IDs from the href attributes
+top_movie_IDs <- str_extract(top_movie_links, "tt\\d+")
+
+# Optionally, clean NA values if any links do not contain IMDb IDs
+top_movie_IDs <- na.omit(top_movie_IDs)
+
+```
+
+
+```{r}
+
+
+library(httr)
+library(dplyr)
+
+# API Configuration
+api_key <- "cd8b35cb"
+
+# Initialize an empty data frame to store movie data
+top_movies_df <- data.frame(
+  Title = character(),
+  Year = character(),
+  Director = character(),
+  IMDbRating = character(),
+  rottenTomatoScore = character(),
+  awards = character(),
+  stringsAsFactors = FALSE
+)
+
+# Function to fetch movie data
+fetch_movie_data <- function(top_movie_ID) {
+  url <- sprintf("http://www.omdbapi.com/?i=%s&apikey=%s", top_movie_ID, api_key)
+  response <- GET(url)
+  if (status_code(response) == 200) {
+    movie_data <- content(response, "parsed")
+    if (!is.null(movie_data$Error)) {
+      print(movie_data$Error)
+      return(data.frame(Title = NA, Year = NA, Director = NA, imdbRating = NA, rottenTomatoScore = NA, awards = NA))
+    }
+    if ("Ratings" %in% names(movie_data) &&
+        length(movie_data$Ratings) > 0) {
+      rotten_tomatoes_rating <- NA
+      for (rating in movie_data$Ratings) {
+        # Check if the source is 'Rotten Tomatoes'
+        if (rating$Source == "Rotten Tomatoes") {
+          rotten_tomatoes_rating <- (rating$Value)
+        }
+      }
+    } else {
+      rotten_tomatoes_rating <- NA  # Return NA if there are no ratings
+    }
+    print(rotten_tomatoes_rating)
+    return(data.frame(
+      Title = movie_data$Title,
+      Year = movie_data$Year,
+      Director = movie_data$Director,
+      IMDbRating = movie_data$imdbRating,
+      rottenTomatoScore = rotten_tomatoes_rating,
+      awards = movie_data$Awards
+    ))
+  } else {
+    print(content(response, as = "text"))
+    return(data.frame(Title = NA, Year = NA, Director = NA, imdbRating = NA, rottenTomatoScore = NA))
+  }
+}
+
+# Process each IMDb ID
+for (id in top_movie_IDs) {
+  top_movie_info <- fetch_movie_data(id)
+  top_movies_df <- bind_rows(top_movies_df, top_movie_info)
+}
+
+# Display the result
+print(top_movies_df)
+
+
+# access at 21:00 3/5/2024
+```
+
+```{r}
+
+
+top_movies_df$rottenTomatoScore[191] <- "95%"
+top_movies_df$rottenTomatoScore[232] <- "97%"
+top_movies_df$rottenTomatoScore[236] <- "96%"
+
+
+print(top_movies_df)
+```
+
+
+```{r}
+library(dplyr)
+
+# Function to extract numbers and sum them
+sum_awards_nominations <- function(award_string) {
+  # Extract all groups of digits
+  numbers <- gsub("[^0-9]", " ", award_string)  # Replace non-digits with spaces
+  numbers <- unlist(strsplit(numbers, "\\s+"))  # Split string at one or more spaces
+  numbers <- numbers[numbers != ""]            # Remove any empty strings
+  numbers <- as.numeric(numbers)               # Convert to numeric
+  
+  # Return the sum of numbers
+  sum(numbers, na.rm = TRUE)
+}
+
+# Apply the function to the 'awards' column and create a new data frame
+top_movies_df <- top_movies_df %>%
+  mutate(totalNominationsAndAwards = sapply(awards, sum_awards_nominations))
+
+# View the updated data frame
+print(top_movies_df)
+
+```
+
+```{r}
+# this is a data set from kaggle, I filterd movies with more than 20000 votes since the hero movies have at least 20000 votes
+#read csv file to obtain the movie ID data
+all_movie_IDs <- read.csv("movieID.csv")
+
+```
+
+
+```{r}
+# Function to generate a single random movie ID
+generateRandomMovieID <- function() {
+  #select a random row from the all_movie_IDs data frame for the unique movie ID
+  random_ID <- sample_n(all_movie_IDs, 1)
+  return(random_ID)
+}
+
+# print(generateRandomMovieID())
+
+```
+
+
+```{r}
+
+# API Configuration
+api_key <- "cd8b35cb"
+
+# Initialize an empty data frame to store movie data
+random_movies_df <- data.frame(
+  Title = character(),
+  Year = character(),
+  Director = character(),
+  IMDbRating = character(),
+  rottenTomatoScore = character(),
+  awards = character(),
+  stringsAsFactors = FALSE
+)
+
+# Function to fetch movie data
+fetch_movie_data <- function(movie_ID) {
+  url <- sprintf("http://www.omdbapi.com/?i=%s&apikey=%s", movie_ID, api_key)
+  response <- GET(url)
+  if (status_code(response) == 200) {
+    movie_data <- content(response, "parsed")
+    if (!is.null(movie_data$Error)) {
+      print(movie_data$Error)
+      return(NULL)  # Return NULL if there is an error (e.g., movie not found)
+    }
+    rotten_tomatoes_rating <- NA
+    if ("Ratings" %in% names(movie_data) &&
+        length(movie_data$Ratings) > 0) {
+      for (rating in movie_data$Ratings) {
+        if (rating$Source == "Rotten Tomatoes") {
+          rotten_tomatoes_rating <- rating$Value
+        }
+      }
+    }
+    return(data.frame(
+      Title = movie_data$Title,
+      Year = movie_data$Year,
+      Director = movie_data$Director,
+      IMDbRating = movie_data$imdbRating,
+      rottenTomatoScore = rotten_tomatoes_rating,
+      awards = movie_data$Awards,
+      stringsAsFactors = FALSE
+    ))
+  } else {
+    print(content(response, as = "text"))
+    return(NULL)
+  }
+}
+
+# Using the current time as seed for randomness
+# set.seed(Sys.time())
+
+# Loop to fetch data until the DataFrame has 400 entries
+for (i in 1:1000) {
+  random_movie_ID <- generateRandomMovieID()
+  random_movie_info <- fetch_movie_data(random_movie_ID)
+  if (!is.null(random_movie_info)) {
+    random_movies_df <- bind_rows(random_movies_df, random_movie_info)
+  }
+}
+
+# Display the result
+print(random_movies_df)
+
+
+```
+
+```{r}
+
+# # Function to extract numbers and sum them
+# sum_awards_nominations <- function(award_string) {
+#   # Extract all groups of digits
+#   numbers <- gsub("[^0-9]", " ", award_string)  # Replace non-digits with spaces
+#   numbers <- unlist(strsplit(numbers, "\\s+"))  # Split string at one or more spaces
+#   numbers <- numbers[numbers != ""]            # Remove any empty strings
+#   numbers <- as.numeric(numbers)               # Convert to numeric
+#   
+#   # Return the sum of numbers
+#   sum(numbers, na.rm = TRUE)
+# }
+
+# Apply the function to the 'awards' column and create a new data frame
+new_random_movies_df <- random_movies_df %>%
+  mutate(totalNominationsAndAwards = sapply(awards, sum_awards_nominations))
+
+# View the updated data frame
+print(new_random_movies_df)
+
+```
+
+```{r}
+
+
+# Plot the IMDb rating against total nominations and awards for new_hero_movies_df
+# with a linear fit
+plot <- ggplot(new_hero_movies_df, aes(x = IMDbRating, y = totalNominationsAndAwards)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +  # Add linear regression line
+  labs(title = "IMDb Rating vs. Total Nominations and Awards for Hero Movies",
+       x = "IMDb Rating",
+       y = "Total Nominations and Awards")
+
+print(plot)
+
+# Step 1: Convert "N/A" to NA in the IMDbRating column
+new_random_movies_df_withoutNA <- new_random_movies_df %>%
+  mutate(IMDbRating = na_if(IMDbRating, "N/A")) %>%
+  mutate(IMDbRating = as.numeric(IMDbRating))  # Ensure IMDbRating is numeric
+
+# Step 2: Remove rows where IMDbRating is NA
+new_random_movies_df_withoutNA <- new_random_movies_df_withoutNA %>%
+  drop_na(IMDbRating) %>%
+  filter(Year >= 1978)  # Filter movies released after 1978
+
+# Step 3: Plot the IMDb rating against total nominations and awards
+plot <- ggplot(new_random_movies_df_withoutNA, aes(x = IMDbRating, y = totalNominationsAndAwards)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +  # Adds a linear regression line
+  labs(title = "IMDb Rating vs. Total Nominations and Awards for sample Movies",
+       x = "IMDb Rating",
+       y = "Total Nominations and Awards") +
+  theme(axis.text.x = element_text(size = 8))  # Reduce the size of font of the x-axis
+
+print(plot)
+
+
+```
+
+```{r}
+
+library(ggplot2)
+
+new_hero_movies_df$Year <- as.numeric(as.character(new_hero_movies_df$Year))
+new_hero_movies_df$IMDbRating <- as.numeric(as.character(new_hero_movies_df$IMDbRating))
+
+# Plot IMDb rating vs. release year for hero movies with a best fit line , calculate the slopp of the line 
+plot <- ggplot(new_hero_movies_df, aes(x = Year, y = IMDbRating)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Release Year vs. IMDb Rating for Hero Movies",
+       x = "Release Year",
+       y = "IMDb Rating") +
+  theme(axis.text.x = element_text(size = 6))  # Sets the x-axis text size
+
+print(plot)
+
+# Fit a linear model to the data
+model <- lm(IMDbRating ~ Year, data = new_hero_movies_df)
+
+# Extract the model's coefficients
+coefficients <- coef(model)
+
+
+# Extract the slope (coefficient of Year)
+
+slope <- coefficients["Year"]
+
+# Print the slope of the regression line
+
+print(paste("The slope of the regression line is:", slope))
+
+
+
+
+```   
+
+```{r}
+
+# Remove the '%' sign from the rotten tomato score and convert it to numeric
+new_hero_movies_df$rottenTomatoScore <- as.numeric(gsub("%", "", new_hero_movies_df$rottenTomatoScore))
+#plot the release year against the rotten tomato score for hero movies with a best fit line, calculate the slope of the line
+plot <- ggplot(new_hero_movies_df, aes(x = Year, y = rottenTomatoScore)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Release Year vs. Rotten Tomato Score for Hero Movies",
+       x = "Release Year",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 6))  # Sets the x-axis text size
+
+print(plot)
+
+# Fit a linear model to the data
+
+model <- lm(rottenTomatoScore ~ Year, data = new_hero_movies_df)
+
+# Extract the model's coefficients
+
+coefficients <- coef(model)
+
+# Extract the slope (coefficient of Year)
+
+slope <- coefficients["Year"]
+
+# Print the slope of the regression line
+
+print(paste("The slope of the regression line is:", slope))
+
+
+
+
+```
+
+
+```{r}
+# Convert 'Year' to numeric if it's not
+if(!is.numeric(new_random_movies_df_withoutNA$Year)) {
+  new_random_movies_df_withoutNA$Year <- as.numeric(as.character(new_random_movies_df_withoutNA$Year))
+}
+
+# Convert 'IMDbRating' to numeric if it's not
+if(!is.numeric(new_random_movies_df_withoutNA$IMDbRating)) {
+  new_random_movies_df_withoutNA$IMDbRating <- as.numeric(as.character(new_random_movies_df_withoutNA$IMDbRating))
+}
+
+# Filter movies released after or in 1978
+filtered_movies <- new_random_movies_df_withoutNA %>%
+  filter(Year >= 1978)
+
+# Plot IMDb rating vs. release year for movies after 1978
+plot <- ggplot(filtered_movies, aes(x = Year, y = IMDbRating)) +
+  geom_point() +  # Plots the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adds a linear regression line without standard error bands
+  labs(title = "IMDb Rating vs. Release Year for Random Movies Post-1978",
+       x = "Release Year",
+       y = "IMDb Rating") +
+  theme(axis.text.x = element_text(size = 5))  # Adjusts font size of x-axis text
+
+# Print the plot
+print(plot)
+
+```
+```{r}
+
+# plot the release year against the rotten tomato score for new hero movies with a best fit line, calculate the slope of the line
+#remove the % sign of the rotten tomato score and convert it to numeric
+new_hero_movies_df$rottenTomatoScore <- as.numeric(gsub("%", "", new_hero_movies_df$rottenTomatoScore))
+
+#plot the release year against the rotten tomato score for new hero movies with a best fit line, calculate the slope of the line
+
+plot <- ggplot(new_hero_movies_df, aes(x = Year, y = rottenTomatoScore)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Release Year vs. Rotten Tomato Score for Hero Movies",
+       x = "Release Year",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 6))  # Sets the x-axis text size
+
+print(plot)
+```
+
+
+```{r}
+
+#plot the release year against the rotten tomato score for random movies with a best fit line, calculate the slope of the line
+#remove the % sign of the rotten tomato score and convert it to numeric
+new_random_movies_df_withoutNA$rottenTomatoScore <- as.numeric(gsub("%", "", new_random_movies_df_withoutNA$rottenTomatoScore))
+
+#plot the release year against the rotten tomato score for random movies with a best fit line, calculate the slope of the line
+plot <- ggplot(new_random_movies_df_withoutNA, aes(x = Year, y = rottenTomatoScore)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Release Year vs. Rotten Tomato Score for Random Movies",
+       x = "Release Year",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 6))  # Sets the x-axis text size
+
+print(plot)
+
+
+
+```
+
+
+```{r}
+
+#plot the rotten tomato score against the total nominations and awards for new_hero_movies_df
+#remove the % sign of the rotten tomato score and convert it to numeric
+new_hero_movies_df$rottenTomatoScore <- as.numeric(gsub("%", "", new_hero_movies_df$rottenTomatoScore))
+
+#plot the rotten tomato score against the total nominations and awards for new_hero_movies_df
+plot <- ggplot(new_hero_movies_df, aes(x = rottenTomatoScore, y = totalNominationsAndAwards)) +
+  geom_point() +
+  labs(title = "Rotten Tomato Score vs. Total Nominations and Awards for Hero Movies",
+       x = "Rotten Tomato Score",
+       y = "Total Nominations and Awards") +
+  theme(axis.text.x = element_text(size = 8))  # Reduce the size of font of the x-axis
+
+print(plot)
+
+```
+
+```{r}
+
+# Remove the '%' sign from the rotten tomato score and convert it to numeric for random_movies_df_withoutNA
+new_random_movies_df_withoutNA$rottenTomatoScore <- as.numeric(gsub("%", "", new_random_movies_df_withoutNA$rottenTomatoScore))
+
+# Plot the rotten tomato score against the total nominations and awards for random_movies_df_withoutNA 
+plot <- ggplot(new_random_movies_df_withoutNA, aes(x = rottenTomatoScore, y = totalNominationsAndAwards)) +
+  geom_point() +
+  labs(title = "Rotten Tomato Score vs. Total Nominations and Awards for Random Movies",
+       x = "Rotten Tomato Score",
+       y = "Total Nominations and Awards") +
+  theme(axis.text.x = element_text(size = 8))  # Reduce the size of font of the x-axis
+
+print(plot)
+
+
+```
+
+```{r}
+
+
+# Remove the '%' sign from the rotten tomato score and convert it to numeric
+new_hero_movies_df$rottenTomatoScore <- as.numeric(gsub("%", "", new_hero_movies_df$rottenTomatoScore))
+
+# Fit a linear model to the data
+model <- lm(rottenTomatoScore ~ IMDbRating, data = new_hero_movies_df)
+
+# Extract the model's coefficients
+coefficients <- coef(model)
+
+# Extract the slope (coefficient of IMDbRating)
+slope <- coefficients["IMDbRating"]
+
+# Plot the IMDb rating against rotten tomato score
+plot <- ggplot(new_hero_movies_df, aes(x = IMDbRating, y = rottenTomatoScore)) +
+  geom_point() +  # Plots the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adds a linear regression line
+  labs(title = "IMDb Rating vs. Rotten Tomato Score for Hero Movies",
+       x = "IMDb Rating",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 8))  # Adjust the size of font of the x-axis text
+
+# Print the plot
+print(plot)
+
+# Print the slope of the regression line
+print(paste("The slope of the regression line is:", slope))
+
+```
+
+
+```{r}
+
+
+# Remove the '%' sign from the rotten tomato score and convert it to numeric
+new_hero_movies_df$rottenTomatoScore <- as.numeric(gsub("%", "", new_hero_movies_df$rottenTomatoScore))
+
+# Plot the IMDb rating against rotten tomato score for new_hero_movies_df
+plot <- ggplot(new_hero_movies_df, aes(x = IMDbRating, y = rottenTomatoScore)) +
+  geom_point() +  # Plots the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adds a linear regression line
+  labs(title = "IMDb Rating vs. Rotten Tomato Score for Hero Movies",
+       x = "IMDb Rating",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 8))  # Adjust the size of font of the x-axis text
+
+# Print the plot
+print(plot)
+
+
+```
+
+
+```{r}
+
+# # Remove the '%' sign from the rotten tomato score and convert it to numeric
+# new_random_movies_df_withoutNA$rottenTomatoScore <- as.numeric(gsub("%", "", new_random_movies_df_withoutNA$rottenTomatoScore))
+# 
+# # Plot the IMDb rating against rotten tomato score for new_random_movies_df_withoutNA
+# plot <- ggplot(new_random_movies_df_withoutNA, aes(x = IMDbRating, y = rottenTomatoScore)) +
+#   geom_point() +  # Plots the data points
+#   geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adds a linear regression line
+#   labs(title = "IMDb Rating vs. Rotten Tomato Score for Random Movies",
+#        x = "IMDb Rating",
+#        y = "Rotten Tomato Score") +
+#   theme(axis.text.x = element_text(size = 8))  # Adjust the size of font of the x-axis text
+# 
+# # Print the plot
+# print(plot)
+
+# Load necessary libraries
+library(ggplot2)
+
+# Remove the '%' sign from the rotten tomato score and convert it to numeric
+new_random_movies_df_withoutNA$rottenTomatoScore <- as.numeric(gsub("%", "", new_random_movies_df_withoutNA$rottenTomatoScore))
+
+# Fit a linear model to the data
+model <- lm(rottenTomatoScore ~ IMDbRating, data = new_random_movies_df_withoutNA)
+
+# Extract the model's coefficients
+coefficients <- coef(model)
+
+# Extract the slope (coefficient of IMDbRating)
+slope <- coefficients["IMDbRating"]
+
+# Plot the IMDb rating against rotten tomato score
+plot <- ggplot(new_random_movies_df_withoutNA, aes(x = IMDbRating, y = rottenTomatoScore)) +
+  geom_point() +  # Plots the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adds a linear regression line
+  labs(title = "IMDb Rating vs. Rotten Tomato Score for sample Movies",
+       x = "IMDb Rating",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 8))  # Adjust the size of font of the x-axis text
+
+# Print the plot
+print(plot)
+
+# Print the slope of the regression line
+print(paste("The slope of the regression line is:", slope))
+
+
+```
+```{r}
+
+# rotten tomato score against the release year for new hero movies
+#remove the % sign of the rotten tomato score and convert it to numeric
+new_hero_movies_df$rottenTomatoScore <- as.numeric(gsub("%", "", new_hero_movies_df$rottenTomatoScore))
+
+#plot the rotten tomato score against the release year for new hero movies
+plot <- ggplot(new_hero_movies_df, aes(x = Year, y = rottenTomatoScore)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Release Year vs. Rotten Tomato Score for Hero Movies",
+       x = "Release Year",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 6))  # Sets the x-axis text size
+
+print(plot)
+
+```
+
+
+
+```{r}
+
+#rotten tomato score against the release year for random movies
+#remove the % sign of the rotten tomato score and convert it to numeric
+new_random_movies_df_withoutNA$rottenTomatoScore <- as.numeric(gsub("%", "", new_random_movies_df_withoutNA$rottenTomatoScore))
+
+
+plot <- ggplot(new_random_movies_df_withoutNA, aes(x = Year, y = rottenTomatoScore)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Release Year vs. Rotten Tomato Score for Hero Movies",
+       x = "Release Year",
+       y = "Rotten Tomato Score") +
+  theme(axis.text.x = element_text(size = 4))  # Sets the x-axis text size
+
+print(plot)
+```
